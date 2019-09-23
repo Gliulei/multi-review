@@ -1,0 +1,21 @@
+{
+  "name": "liulei/multi-review",
+  "description": "Multi-person review library",
+  "type": "library",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "liulei",
+      "email": "liulei4567@qq.com"
+    }
+  ],
+  "minimum-stability": "dev",
+  "require": {
+    "php": ">=7.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Lyric\\": "src/"
+    }
+  }
+}
