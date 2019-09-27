@@ -12,10 +12,22 @@ class Task {
 
     private $ids = [];
 
+    /**
+     * 重试次数
+     * @var int
+     */
     private $tryTimes = 2;
 
+    /**
+     * 回调函数
+     * @var
+     */
     private $callback;
 
+    /**
+     * 回调函数参数
+     * @var
+     */
     private $args;
 
     /**
@@ -47,7 +59,7 @@ class Task {
         return $this;
     }
 
-    public function getWaitTaskIds($key, $num = 3, $callback = [], $args = []) {
+    public function getWaitTaskIds($key, $num = 3) {
 
     }
 
@@ -71,6 +83,11 @@ class Task {
             // 2、redis有可能超时 重试可以容错
             if ($tryTimes++ > $this->tryTimes) {
                 break;
+            }
+
+            //获取锁成功
+            if($provider->lock($key)) {
+                $this->callback;
             }
         }
     }
