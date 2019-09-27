@@ -14,34 +14,58 @@ class Task {
 
     /**
      * 重试次数
+     *
      * @var int
      */
     private $tryTimes = 2;
 
     /**
      * 回调函数
+     *
      * @var
      */
     private $callback;
 
     /**
-     * 回调函数参数
-     * @var
+     * @var provider
      */
-    private $args;
+    private $provider;
+
+    private $key;
+
+    private $num;
+
+    private $uniqueKey = '_id';
+
+
+    /**
+     * 设置业务队列key和业务数量
+     *
+     * @param $key
+     * @param $num
+     * @param $uniqueKey
+     * @return $this
+     * @author liu.lei
+     */
+    public function setTaskKey($key, $num, $uniqueKey) {
+
+        $this->key       = $key;
+        $this->num       = $num;
+        $this->uniqueKey = $uniqueKey;
+
+        return $this;
+    }
 
     /**
      * 设置回调函数
      *
      * @param \Closure $callback
-     * @param array    $args
      * @return $this
      * @author liu.lei
      */
-    private function setCallback(\Closure $callback, array $args) {
+    public function setCallback(\Closure $callback) {
 
         $this->callback = $callback;
-        $this->args     = $args;
 
         return $this;
     }
@@ -63,18 +87,18 @@ class Task {
 
     }
 
-    private function getTaskIds($key, $num) {
+    private function getTaskIds() {
         $tryTimes = 0;
         $provider = new provider();
         while (true) {
-            for ($i = 0; $i <= $num; $i++) {
-                $id = $provider->getTaskIds($key);
+            for ($i = 0; $i <= $this->num; $i++) {
+                $id = $provider->getTaskIds($this->key);
                 if ($id) {
                     $this->ids[] = $id;
                     //todo 锁定任务 不锁定任务的话 从池子里取任务有可能会重复
                 }
                 //如果id取够了就跳出循环
-                if (count($this->ids) == $num) {
+                if (count($this->ids) == $this->num) {
                     break;
                 }
             }
@@ -86,8 +110,34 @@ class Task {
             }
 
             //获取锁成功
-            if($provider->lock($key)) {
-                $this->callback;
+            if ($provider->lock($this->key)) {
+                $callbackResult = ($this->callback)();
+                if (empty($callbackResult)) {
+                    $provider->unlock($this->key);
+                    break;
+                } else {
+                    //解析结果集
+                    $this->resolveResult($callbackResult);
+                }
+            } else {
+                //睡眠10ms
+                usleep(100000);
+            }
+        }
+    }
+
+    private function resolveResult($callbackResult) {
+        foreach ($callbackResult as $result) {
+            if (isset($result[$this->uniqueKey])) {
+                if (is_object($result[$this->uniqueKey])) {
+                    $id = $result[$this->uniqueKey]->__toString();
+                } else {
+                    $id = $result[$this->uniqueKey];
+                }
+
+                $this->provider->addTaskId($this->key, $id);
+            } else {
+                continue;
             }
         }
     }

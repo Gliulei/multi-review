@@ -90,4 +90,8 @@ class provider {
 
         return $is_lock;
     }
+
+    public function unlock($key) {
+
+    }
 }
