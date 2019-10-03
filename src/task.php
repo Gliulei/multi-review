@@ -3,13 +3,19 @@
 /**
  * @since  2019-09-20
  */
-namespace review;
+namespace Review;
 
-use review\redis\provider;
+use Review\Exception\ReviewException;
+use Review\Redis\Provider;
 use Exception;
 
-class Task {
+class Task
+{
 
+    /**
+     * 获取的任务id数据
+     * @var array
+     */
     private $ids = [];
 
     /**
@@ -31,11 +37,29 @@ class Task {
      */
     private $provider;
 
+    /**
+     * 设置的任务key
+     * @var
+     */
     private $key;
 
+    /**
+     * 获取的任务个数
+     * @var
+     */
     private $num;
 
+    /**
+     * 指定的字段获取id
+     * @var string
+     */
     private $uniqueKey = '_id';
+
+
+    public function __construct()
+    {
+        $this->provider = new provider();
+    }
 
 
     /**
@@ -47,11 +71,12 @@ class Task {
      * @return $this
      * @author liu.lei
      */
-    public function setTaskKey($key, $num, $uniqueKey) {
+    public function setTaskKey(string $key, int $num = 3, string $uniqueKey = '_id')
+    {
 
-        $this->key       = $key;
-        $this->num       = $num;
-        $this->uniqueKey = $uniqueKey;
+        $this->key = $key;
+        $this->num = $num;
+        $this->uniqueKey = $uniqueKey ? $uniqueKey : '_id';
 
         return $this;
     }
@@ -63,7 +88,8 @@ class Task {
      * @return $this
      * @author liu.lei
      */
-    public function setCallback(\Closure $callback) {
+    public function setCallback(\Closure $callback)
+    {
 
         $this->callback = $callback;
 
@@ -77,25 +103,36 @@ class Task {
      * @return $this
      * @author liu.lei
      */
-    public function setTryTimes(int $tryTimes) {
+    public function setTryTimes(int $tryTimes = 3)
+    {
         $this->tryTimes = $tryTimes;
 
         return $this;
     }
 
-    public function getWaitTaskIds($key, $num = 3) {
-
+    /**
+     * 获取待审核任务数据
+     * @return array
+     */
+    public function getWaitTaskIds()
+    {
+        $this->getTaskIds();
+        return $this->ids;
     }
 
-    private function getTaskIds() {
+    /**
+     *
+     */
+    private function getTaskIds()
+    {
         $tryTimes = 0;
-        $provider = new provider();
         while (true) {
             for ($i = 0; $i <= $this->num; $i++) {
-                $id = $provider->getTaskIds($this->key);
+                $id = $this->provider->getTaskIds($this->key);
                 if ($id) {
                     $this->ids[] = $id;
-                    //todo 锁定任务 不锁定任务的话 从池子里取任务有可能会重复
+                    // 锁定任务 不锁定任务的话 从池子里取任务有可能会重复
+                    $this->provider->addProcessId($this->key, $id);
                 }
                 //如果id取够了就跳出循环
                 if (count($this->ids) == $this->num) {
@@ -110,23 +147,29 @@ class Task {
             }
 
             //获取锁成功
-            if ($provider->lock($this->key)) {
+            if ($this->provider->lock($this->key)) {
                 $callbackResult = ($this->callback)();
                 if (empty($callbackResult)) {
-                    $provider->unlock($this->key);
+                    $this->provider->unlock($this->key);
                     break;
                 } else {
                     //解析结果集
                     $this->resolveResult($callbackResult);
                 }
             } else {
-                //睡眠10ms
+                //没有获得锁的睡眠10ms 等待获得锁的将数据写到队列中去
                 usleep(100000);
             }
         }
     }
 
-    private function resolveResult($callbackResult) {
+    /**
+     * 解析结果集
+     * @param $callbackResult
+     * @throws Exception
+     */
+    private function resolveResult($callbackResult)
+    {
         foreach ($callbackResult as $result) {
             if (isset($result[$this->uniqueKey])) {
                 if (is_object($result[$this->uniqueKey])) {
@@ -134,10 +177,9 @@ class Task {
                 } else {
                     $id = $result[$this->uniqueKey];
                 }
-
                 $this->provider->addTaskId($this->key, $id);
             } else {
-                continue;
+                throw new ReviewException($this->uniqueKey . ':字段对应的数据不存在');
             }
         }
     }

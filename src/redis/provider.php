@@ -3,9 +3,10 @@
 /**
  * @since  2019-09-20
  */
-namespace review\redis;
+namespace Review\Redis;
 
-class provider {
+class Provider
+{
 
     private $redis;
 
@@ -15,11 +16,15 @@ class provider {
     private $listRedis;
 
     private $task_ids_key = '_multi_review_%s_task_ids_';
-    private $lock_key     = '_multi_review_%s_lock_';
+    private $lock_key = '_multi_review_%s_lock_';
 
-    public function __construct() {
+    private $process_ids_key = '_multi_review_%s_processing_ids_';
 
-        $this->redis     = new \Redis('127.0.0.1', '6379');
+
+    public function __construct()
+    {
+
+        $this->redis = new \Redis('127.0.0.1', '6379');
         $this->listRedis = new \Redis('127.0.0.1', '6379');
     }
 
@@ -30,7 +35,8 @@ class provider {
      * @return string
      * @author liu.lei
      */
-    public function getTaskIds($key) {
+    public function getTaskIds($key)
+    {
         $key = sprintf($this->task_ids_key, $key);
 
         return $this->listRedis->lPop($key);
@@ -44,7 +50,8 @@ class provider {
      * @return int
      * @author liu.lei
      */
-    public function addTaskId($key, $id) {
+    public function addTaskId($key, $id)
+    {
         $key = sprintf($this->task_ids_key, $key);
 
         return $this->listRedis->rPush($key, $id);
@@ -58,7 +65,8 @@ class provider {
      * @return int
      * @author liu.lei
      */
-    public function remTaskId($key, $id) {
+    public function remTaskId($key, $id)
+    {
         $key = sprintf($this->task_ids_key, $key);
 
         return $this->listRedis->lRem($key, $id, 0);
@@ -72,7 +80,8 @@ class provider {
      * @param int $expire
      * @return bool
      */
-    public function lock($key, $expire = 5) {
+    public function lock($key, $expire = 5)
+    {
 
         $key = sprintf($this->lock_key, $key);
 
@@ -91,7 +100,52 @@ class provider {
         return $is_lock;
     }
 
-    public function unlock($key) {
+    /**
+     * 解锁，默认立即解开，seconds设置多少秒后解开
+     * @param $key
+     * @param int $seconds
+     * @return bool|int
+     */
+    public function unlock($key, $seconds = 0)
+    {
+        $key = sprintf($this->lock_key, $key);
+        if ($seconds) {
+            return $this->redis->getSet($key, time() + $seconds);
+        }
+        return $this->redis->del($key);
+    }
 
+
+    /**
+     * 添加正在处理的ID
+     *
+     * @param $key
+     * @param $value
+     * @return int
+     */
+    public function addProcessId($key, $value)
+    {
+        $key = $this->getProcessKey(sprintf($this->process_ids_key, $key));
+        $this->redis->expire($key, 3600);
+        return $this->redis->zAdd($key, time(), $value);
+    }
+
+    private function getProcessKey($key)
+    {
+        $date = date('Ymd');
+        $key = $key . $date . '_';
+        return $key;
+    }
+
+    /**
+     * 删除正在处理的ID
+     * @param $key
+     * @param $value
+     * @return int
+     */
+    public function delProcessId($key, $value)
+    {
+        $key = $this->getProcessKey(sprintf($this->process_ids_key, $key));
+        return $this->redis->zRem($key, $value);
     }
 }
