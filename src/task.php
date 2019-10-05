@@ -1,6 +1,8 @@
 <?php
 
 /**
+ *
+ * 实现思路
  * @since  2019-09-20
  */
 namespace Review;
@@ -55,27 +57,31 @@ class Task
      */
     private $uniqueKey = '_id';
 
+    /**
+     * 任务的最大生存时间单位(min) 超时这个时间还没被处理会被强制收回到任务队列中去
+     * @var int
+     */
+    private $maxTtl = 10;
 
-    public function __construct()
+
+    public function __construct($taskRedis, $listRedis)
     {
-        $this->provider = new provider();
+        $this->provider = new provider($taskRedis, $listRedis);
     }
 
 
     /**
-     * 设置业务队列key和业务数量
+     * 设置业务队列key
      *
      * @param $key
-     * @param $num
      * @param $uniqueKey
      * @return $this
      * @author liu.lei
      */
-    public function setTaskKey(string $key, int $num = 3, string $uniqueKey = '_id')
+    public function setTaskKey(string $key, string $uniqueKey = '_id')
     {
 
         $this->key = $key;
-        $this->num = $num;
         $this->uniqueKey = $uniqueKey ? $uniqueKey : '_id';
 
         return $this;
@@ -111,11 +117,22 @@ class Task
     }
 
     /**
+     * 设置最大生存时间
+     * @param int $ttl
+     */
+    public function setMaxTtl(int $ttl = 10)
+    {
+        $this->maxTtl = $ttl;
+    }
+
+    /**
      * 获取待审核任务数据
+     * @param $num
      * @return array
      */
-    public function getWaitTaskIds()
+    public function getWaitTaskIds(int $num = 3)
     {
+        $this->num = ($num < 0) ? 3 : $num;
         $this->getTaskIds();
         return $this->ids;
     }
@@ -125,6 +142,14 @@ class Task
      */
     private function getTaskIds()
     {
+        if (empty($this->key)) {
+            throw new ReviewException('key is empty');
+        }
+
+        if (empty($this->callback)) {
+            throw new ReviewException('callback function is empty');
+        }
+
         $tryTimes = 0;
         while (true) {
             for ($i = 0; $i <= $this->num; $i++) {
@@ -177,7 +202,15 @@ class Task
                 } else {
                     $id = $result[$this->uniqueKey];
                 }
-                $this->provider->addTaskId($this->key, $id);
+
+                //如果任务没被处理则添加到任务队列
+                if (!$this->provider->isProcessing($this->key, $id, $this->maxTtl)) {
+                    $this->provider->addTaskId($this->key, $id);
+                } else {
+                    // 如果有很多的单子都被拿走了 说明有很多 从队列里取了只看不审核的
+                    trigger_error(json_encode([count($callbackResult), $id, $this->key]));
+                }
+
             } else {
                 throw new ReviewException($this->uniqueKey . ':字段对应的数据不存在');
             }

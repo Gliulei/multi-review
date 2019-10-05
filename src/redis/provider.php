@@ -5,27 +5,53 @@
  */
 namespace Review\Redis;
 
+use Redis;
+
+defined('MULTI_REVIEW_TASK_REDIS') || define('MULTI_REVIEW_TASK_REDIS', '127.0.0.1:6379');
+defined('MULTI_REVIEW_LIST_REDIS') || define('MULTI_REVIEW_LIST_REDIS', '127.0.0.1:6379');
+
 class Provider
 {
 
+    /**
+     * @var redis
+     */
     private $redis;
 
     /**
-     * @var string Redis
+     * @var Redis
      */
     private $listRedis;
 
+    /**
+     * 队列任务
+     * @var string
+     */
     private $task_ids_key = '_multi_review_%s_task_ids_';
+
+    /**
+     * 锁
+     * @var string
+     */
     private $lock_key = '_multi_review_%s_lock_';
 
+    /**
+     * 正在处理中的key
+     * @var string
+     */
     private $process_ids_key = '_multi_review_%s_processing_ids_';
 
 
-    public function __construct()
+    /**
+     * Provider constructor.
+     * @param $taskRedis
+     * @param $listRedis
+     */
+    public function __construct($taskRedis, $listRedis)
     {
 
-        $this->redis = new \Redis('127.0.0.1', '6379');
-        $this->listRedis = new \Redis('127.0.0.1', '6379');
+        $this->redis = $taskRedis;
+        $this->listRedis = $listRedis;
     }
 
     /**
@@ -128,6 +154,29 @@ class Provider
         $key = $this->getProcessKey(sprintf($this->process_ids_key, $key));
         $this->redis->expire($key, 3600);
         return $this->redis->zAdd($key, time(), $value);
+    }
+
+    /**
+     * 判断是否处于正在处理中，如果超过$takenTtl分钟则解除
+     *
+     * @param $key
+     * @param $id
+     * @param $maxTtl
+     * @return bool
+     */
+    public function isProcessing($key, $id, $maxTtl = 10)
+    {
+        $key = $this->getProcessKey(sprintf($this->process_ids_key, $key));
+        $takenTime = $this->redis->zScore($key, $id);
+        if ($takenTime) {
+            if (time() - $takenTime > $maxTtl * 60) {
+                $this->redis->zRem($key, $id);
+                return false;
+            }
+            return true;
+        } else {
+            return false;
+        }
     }
 
     private function getProcessKey($key)
