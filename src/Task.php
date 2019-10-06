@@ -165,6 +165,11 @@ class Task
                 }
             }
 
+            //如果id取够了就跳出循环
+            if (count($this->ids) == $this->num) {
+                break;
+            }
+
             //重试目的是 1、任务队列里没有数据 要从池子里取数据放到任务队列
             // 2、redis有可能超时 重试可以容错
             if ($tryTimes++ > $this->tryTimes) {
