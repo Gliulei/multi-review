@@ -9,7 +9,7 @@
       "email": "liulei4567@qq.com"
     }
   ],
-  "minimum-stability": "dev",
+  "minimum-stability": "stable",
   "require": {
     "php": ">=7.0"
   },
