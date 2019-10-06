@@ -165,7 +165,7 @@ class Task
                 }
             }
 
-            //如果id取够了就跳出循环
+            //如果id取够了就跳出while循环
             if (count($this->ids) == $this->num) {
                 break;
             }
