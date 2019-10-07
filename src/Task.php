@@ -70,7 +70,7 @@ class Task
     private $maxTtl = 10;
 
 
-    public function __construct($taskRedis, $listRedis)
+    public function __construct($taskRedis, $listRedis = null)
     {
         $this->provider = new provider($taskRedis, $listRedis);
     }

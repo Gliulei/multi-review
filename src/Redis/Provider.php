@@ -51,7 +51,7 @@ class Provider
     {
 
         $this->redis = $taskRedis;
-        $this->listRedis = $listRedis;
+        $this->listRedis = $listRedis ? $listRedis : $taskRedis;
     }
 
     /**
