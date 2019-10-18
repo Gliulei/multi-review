@@ -69,6 +69,8 @@ class Task
      */
     private $maxTtl = 10;
 
+    private $checkValidCallback;
+
 
     public function __construct($taskRedis, $listRedis = null)
     {
@@ -106,6 +108,15 @@ class Task
         $this->callback = $callback;
 
         return $this;
+    }
+
+    /**
+     * 业务方校验callback
+     * @param \Closure $callback
+     * @author liu.lei
+     */
+    public function setCheckValidCallback(\Closure $callback) {
+        $this->checkValidCallback = $callback;
     }
 
     /**
@@ -157,13 +168,22 @@ class Task
         }
 
         $tryTimes = 0;
+        $valid = true;
         while (true) {
             for ($i = 0; $i <= $this->num; $i++) {
                 $id = $this->provider->getTaskIds($this->key);
                 if ($id) {
-                    $this->ids[] = $id;
-                    // 锁定任务 不锁定任务的话 从池子里取任务有可能会重复
-                    $this->provider->addProcessId($this->key, $id);
+                    if($this->checkValidCallback instanceof \Closure) {
+                        $valid = ($this->checkValidCallback)();
+                    }
+
+                    if($valid) {
+                        $this->ids[] = $id;
+                        // 锁定任务 不锁定任务的话 从池子里取任务有可能会重复
+                        $this->provider->addProcessId($this->key, $id);
+                    } else {
+                        $this->num++;
+                    }
                 }
                 //如果id取够了就跳出循环
                 if (count($this->ids) == $this->num) {
