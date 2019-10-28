@@ -173,7 +173,7 @@ class Task
             for ($i = 0; $i <= $this->num; $i++) {
                 $id = $this->provider->getTaskIds($this->key);
                 if ($id) {
-                    if($this->checkValidCallback instanceof \Closure) {
+                    if(!empty($this->checkValidCallback) && ($this->checkValidCallback instanceof \Closure)) {
                         $valid = ($this->checkValidCallback)();
                     }
 
