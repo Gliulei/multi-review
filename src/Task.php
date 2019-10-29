@@ -183,7 +183,7 @@ class Task
                         // 锁定任务 不锁定任务的话 从池子里取任务有可能会重复
                         $this->provider->addProcessId($this->key, $id);
                     } else {
-                        $this->num++;
+                        $iteration++;
                     }
                 }
                 //如果id取够了就跳出循环
