@@ -169,8 +169,9 @@ class Task
 
         $tryTimes = 0;
         $valid = true;
+        $iteration = $this->num;
         while (true) {
-            for ($i = 0; $i <= $this->num; $i++) {
+            for ($i = 0; $i <= $iteration; $i++) {
                 $id = $this->provider->getTaskIds($this->key);
                 if ($id) {
                     if(!empty($this->checkValidCallback) && ($this->checkValidCallback instanceof \Closure)) {
